@@ -16,106 +16,92 @@ Example script showing how to setup a simple web server.
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-[CmdletBinding(DefaultParameterSetName="WebAndAdmin")]
+[CmdletBinding(DefaultParameterSetName="Web")]
 param(
 
-[Parameter(ParameterSetName="WebAndAdmin")][switch] $WebAndAdmin,
-[Parameter(ParameterSetName="AdminOnly")][switch] $AdminOnly,
-[Parameter(ParameterSetName="WebOnly")][switch] $WebOnly,
+[Parameter(ParameterSetName="Admin")][switch] $Admin,
+[Parameter(ParameterSetName="Web")][switch] $Web,
 
-[Parameter(Mandatory=$true)]
-[string] $AppUrl,
+[Parameter(Mandatory=$true)][string] $AppUrl,
 
-[Parameter(ParameterSetName="AdminOnly",Mandatory=$true)]
-[string[]] $Servers,
+[Parameter(ParameterSetName="Admin")][string[]] $Servers,
 
-[Parameter(ParameterSetName="WebOnly",Mandatory=$true)][int] $ServerNumber,
+[Parameter(ParameterSetName="Web")][int] $ServerNumber,
 
-[Parameter(ParameterSetName="WebOnly",Mandatory=$true)]
-[Parameter(ParameterSetName="AdminOnly",Mandatory=$true)]
-[string]$MediaFolder,
+[Parameter()][string]$MediaFolder,
 
-[Parameter(ParameterSetName="WebOnly",Mandatory=$true)]
-[Parameter(ParameterSetName="AdminOnly",Mandatory=$true)]
-[string]$ExamineIndexesFolder,
+[Parameter()][string]$ExamineIndexesFolder,
 
-[Parameter(ParameterSetName="AdminOnly")]
-[switch]$ConfigureShare
+[Parameter(ParameterSetName="Admin")][switch]$ConfigureShare,
+
+[Parameter()][string]$WebsitePath,
+
+[Parameter()][string]$WindowsShareIP
 )
 
 Set-StrictMode -Version Latest
 
 & 'C:\Utilities\Carbon\Import-Carbon.ps1'
 
-$deploymentWritersGroupName = 'DeploymentWriters'
-
-$websitePath ='C:\inetpub\MyCompany.MyBrand.Web\'
-if (-not (Test-Path -path $websitePath))
+if (!$WebsitePath){
+	$WebsitePath = 'C:\inetpub\MyCompany.MyBrand.Web\'
+	if (!$MediaFolder){
+		$MediaFolder = 'C:\inetpub\MyCompany.MyBrand.Web\media'
+	}
+	if (!$ExamineIndexesFolder){
+		$ExamineIndexesFolder = 'C:\inetpub\MyCompany.MyBrand.Web\examineIndexes'
+	}
+}
+if (-not (Test-Path -path $WebsitePath))
 {
-    New-Item -Path $websitePath -type directory 
+    New-Item -Path $WebsitePath -type directory 
 }
 
-if($WebOnly -or $AdminOnly){
 
-	Install-User -Username MyCompanyMyBrandUser -Password "P@ssw0rd" -Description "MyCompany MyBrand User for Accessing the Shared Media Folder"
-	if ($WebOnly){
-		Grant-Permission -Path $websitePath -Permission Modify `
-						 -Identity 'MyCompanyMyBrandUser'
-	}
-	else{
-		Grant-Permission -Path $websitePath -Permission Modify `
-					 -Identity 'NETWORK SERVICE'
-		if($AdminOnly -and $ConfigureShare ) {
-			Install-SmbShare -Name MyCompanyMyBrandWebMedia -Path $MediaFolder -Description 'Sharing Media Folder for Admin Node.' -ReadAccess "MyCompanyMyBrandUser"
-			Install-SmbShare -Name MyCompanyMyBrandWebExamineIndexes -Path $ExamineIndexesFolder -Description 'Sharing Examine Indexes Folder for Admin Node.' -ReadAccess "MyCompanyMyBrandUser"
-		}
-	}
+Install-User -Username MyCompanyMyBrandUser -Password "P@ssw0rd" -Description "MyCompany MyBrand User for Accessing the Shared Media Folder"
+Grant-Permission -Path $WebsitePath -Permission Modify -Identity 'MyCompanyMyBrandUser'
+
+if($Admin -and $ConfigureShare ) {
+	Install-SmbShare -Name MyCompanyMyBrandWebMedia -Path $MediaFolder -Description 'Sharing Media Folder for Admin Node.' -ReadAccess "MyCompanyMyBrandUser"
+	Install-SmbShare -Name MyCompanyMyBrandWebExamineIndexes -Path $ExamineIndexesFolder -Description 'Sharing Examine Indexes Folder for Admin Node.' -ReadAccess "MyCompanyMyBrandUser"
 }
-else {
-	Grant-Permission -Path $websitePath -Permission Modify `
-					 -Identity 'NETWORK SERVICE'
-}
-Grant-Permission -Path $websitePath -Permission Read `
-                 -Identity 'Everyone'
+
+Grant-Permission -Path $WebsitePath -Permission Read -Identity 'Everyone'
 				 
 Set-HostsEntry -IPAddress 127.0.0.1 -HostName 'MyCompany.MyBrand.Web' -Description "Self MyCompany.MyBrand.Web Node"
 Set-HostsEntry -IPAddress 127.0.0.1 -HostName $AppUrl -Description "AppUrl MyCompany.MyBrand.Web Node"
 
 [string[]] $serverNames = "Server1.MyCompany.MyBrand.Web","Server2.MyCompany.MyBrand.Web","Server3.MyCompany.MyBrand.Web","Server4.MyCompany.MyBrand.Web"
 
-if ($Servers){
-	for ($i=0; $i -lt $Servers.length; $i++) {
-		Set-HostsEntry -IPAddress $Servers[$i] -HostName $serverNames[$i] -Description "Servers MyCompany.MyBrand.Web Node"
+if ($ServerNumber){
+	Set-HostsEntry -IPAddress 127.0.0.1 -HostName $serverNames[$ServerNumber - 1] -Description "Which Server MyCompany.MyBrand.Web Node"
+}
+else {
+	if ($Servers){
+		for ($i=0; $i -lt $Servers.length; $i++) {
+			Set-HostsEntry -IPAddress $Servers[$i] -HostName $serverNames[$i] -Description "Servers MyCompany.MyBrand.Web Node"
+		}
 	}
 }
 
-
 $appPoolName = 'MyCompany.MyBrand.Web'
-if($WebOnly){
-	Install-IisAppPool -Name $appPoolName -UserName 'MyCompanyMyBrandUser' -Password 'P@ssw0rd'
-}
-else{
-	Install-IisAppPool -Name $appPoolName -ServiceAccount NetworkService
-}
+Install-IisAppPool -Name $appPoolName -UserName 'MyCompanyMyBrandUser' -Password 'P@ssw0rd'
+
 if ($ServerNumber){
 	Set-Variable -Name serverName -Value $serverNames[$ServerNumber - 1]
-	Install-IisWebsite -Path $websitePath -Name 'MyCompany.MyBrand.Web' `
+	Install-IisWebsite -Path $WebsitePath -Name 'MyCompany.MyBrand.Web' `
 					   -Bindings ("http/*:80:MyCompany.MyBrand.Web","http/*:80:$AppUrl","http/*:80:$serverName") -AppPoolName $appPoolName
 }
 else{
-	Install-IisWebsite -Path $websitePath -Name 'MyCompany.MyBrand.Web' `
+	Install-IisWebsite -Path $WebsitePath -Name 'MyCompany.MyBrand.Web' `
 					   -Bindings ("http/*:80:MyCompany.MyBrand.Web","http/*:80:$AppUrl") -AppPoolName $appPoolName
 }
 
-if ($MediaFolder){
-	Install-IisVirtualDirectory -SiteName 'MyCompany.MyBrand.Web' -VirtualPath 'media' -PhysicalPath $MediaFolder
-}
 
-if ($ExamineIndexesFolder){
-	Install-IisVirtualDirectory -SiteName 'MyCompany.MyBrand.Web' -VirtualPath 'examineIndexes' -PhysicalPath $ExamineIndexesFolder
-}
+Install-IisVirtualDirectory -SiteName 'MyCompany.MyBrand.Web' -VirtualPath 'media' -PhysicalPath $MediaFolder
+Install-IisVirtualDirectory -SiteName 'MyCompany.MyBrand.Web' -VirtualPath 'examineIndexes' -PhysicalPath $ExamineIndexesFolder
 
-if ($WebOnly){
-	Set-HostsEntry -IPAddress 54.83.12.45 -HostName "MyCompanyMyBrandWebMediaConnection" -Description "Media Connection to QA-Admin"
-	Set-HostsEntry -IPAddress 54.83.12.45 -HostName "MyCompanyMyBrandWebExamineIndexesConnection" -Description "Examine Indexes Connection to QA-Admin"
+if ($WindowsShareIP){
+	Set-HostsEntry -IPAddress $WindowsShareIP -HostName "MyCompanyMyBrandWebMediaConnection" -Description "Media Connection"
+	Set-HostsEntry -IPAddress $WindowsShareIP -HostName "MyCompanyMyBrandWebExamineIndexesConnection" -Description "Examine Indexes Connection"
 }
