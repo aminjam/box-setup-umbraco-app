@@ -1,10 +1,6 @@
-<#
-.SYNOPSIS
-Example script showing how to setup a simple web server.
-
-#>
-# Copyright 2012 Aaron Jensen
-# 
+# Copyright 2014 Amin Jamali
+# aminjam@outlook.com
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -58,7 +54,7 @@ if (-not (Test-Path -path $WebsitePath))
 }
 
 
-Install-User -Username MyCompanyMyBrandUser -Password "P@ssw0rd" -Description "MyCompany MyBrand User for Accessing the Shared Media Folder"
+Install-User -Username MyCompanyMyBrandUser -Password "V3rYH@rDPW" -Description "MyCompany MyBrand User for Accessing the Shared Media Folder"
 Grant-Permission -Path $WebsitePath -Permission Modify -Identity 'MyCompanyMyBrandUser'
 
 if($Admin -and $ConfigureShare ) {
@@ -85,7 +81,7 @@ else {
 }
 
 $appPoolName = 'MyCompany.MyBrand.Web'
-Install-IisAppPool -Name $appPoolName -UserName 'MyCompanyMyBrandUser' -Password 'P@ssw0rd'
+Install-IisAppPool -Name $appPoolName -UserName 'MyCompanyMyBrandUser' -Password 'V3rYH@rDPW'
 
 if ($ServerNumber){
 	Set-Variable -Name serverName -Value $serverNames[$ServerNumber - 1]
